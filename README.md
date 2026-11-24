@@ -293,12 +293,12 @@ VDD 전원 소스 `V1`의 단자 전류로 계산했습니다. 소스가 회로�
 
 ### 분석
 
-- **Write Delay** — 4개 셀이 1.257 ~ 1.262 ns로 편차 5 ps 이내 → 셀 위치(Row / Column)에 따른 차이가 거의 없음. Cell A 기준 Write 1(0 → 1)이 Write 0(1 → 0)보다 약 0.17 ns 느려 Worst-case를 결정
+- **Write Delay** — 4개 셀이 1.257 ~ 1.262 ns → Cell A 기준 Write 1(0 → 1)이 Write 0(1 → 0)보다 약 0.17 ns 느려 Worst-case를 결정
 - **Read Delay** — 4개 셀 모두 2.829 ns로 동일 (출력 패드 지연 포함)
 - **Write 에너지** — '0' 15.88 pJ, '1' 15.85 pJ로 데이터 값과 관계없이 거의 같음
 - **Read 에너지** — Read 0(52.57 pJ)이 Read 1(30.74 pJ)의 약 1.7배이며, 둘 다 Write보다 큼
 - **누설 전력** — 632.8 pW로 평균 전력(5.795 mW)의 약 10⁻⁷ 수준
-- **데이터 유지** — 같은 Word Line을 쓰는 비선택 셀(예: Cell A에 쓰는 동안의 Cell B)과 이미 기록된 셀의 `q`가 이후 Write 동안 그대로 유지됨
+- SNM 측정 예정
 
 ---
 
