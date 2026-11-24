@@ -188,7 +188,6 @@ IN = 1, CA = 0으로 고정해 Cell A(`I0`) 한 개를 동작시킨 파형입니
 
 - **Write** — DATA 토글(0 → 1 → 0)에 맞춰 내부 노드 `q` / `qb`가 반전되며, WE·WL 활성화 후 약 1 ~ 2 ns 내에 완전한 논리 레벨(0 V / 5 V)로 안착 (50% 기준 Write Delay 측정값 1.262 ns)
 - **Read** — Precharge 해제 후 SE 활성화 시 `OUT`으로 데이터 출력 (WL 50% → `OUT` 50% 기준 Read Delay 측정값 2.829 ns, 출력 패드 지연 포함)
-- **Stability** — 읽기 중 비트라인 커플링·전하 분배에 의한 Read Disturb 없이 `q` / `qb` 상태 유지
 
 ---
 
