@@ -1,7 +1,7 @@
 # 2×2 SRAM Full-Custom Design — MoaFab MyChip
 
 > 모아팹(MoaFab) **'내 칩(MyChip)'** 서비스를 통해 설계·제작한 **2×2 6T SRAM** 풀커스텀 설계 프로젝트입니다.
-> 회로 설계부터 레이아웃, DRC/LVS 검증, 패드 포함 Top-level 시뮬레이션까지 진행했으며, 제작된 칩은 Zynq-7000 FPGA 기반으로 실리콘 검증할 예정입니다.
+> 회로 설계부터 레이아웃, DRC/LVS 검증, 패드 포함 Top-level 시뮬레이션과 성능 측정(Delay · Energy · Power)까지 진행했으며, 제작된 칩은 Zynq-7000 FPGA 기반으로 실리콘 검증할 예정입니다.
 
 ![Cadence Virtuoso](https://img.shields.io/badge/Cadence-Virtuoso%206.1.8-red)
 ![Calibre](https://img.shields.io/badge/Siemens-Calibre%202023.3-blue)
@@ -23,10 +23,13 @@
 4. [회로 설계 (Schematic)](#-회로-설계-schematic)
 5. [레이아웃 (Layout)](#-레이아웃-layout)
 6. [시뮬레이션 결과](#-시뮬레이션-결과)
-7. [물리 검증 (DRC / LVS)](#-물리-검증-drc--lvs)
-8. [핀 배치](#-핀-배치)
-9. [실리콘 검증 계획](#-실리콘-검증-계획)
-10. [팀](#-팀)
+7. [성능 측정 (Simulation)](#-성능-측정-simulation)
+8. [물리 검증 (DRC / LVS)](#-물리-검증-drc--lvs)
+9. [핀 배치](#-핀-배치)
+10. [실리콘 검증 계획](#-실리콘-검증-계획)
+11. [개발 환경](#-개발-환경)
+12. [저장소 구조](#-저장소-구조)
+13. [팀](#-팀)
 
 ---
 
@@ -53,10 +56,11 @@
 |---|---|
 | 구성 | 2 × 2 (4-bit), 6T SRAM Cell |
 | 동작 전압 | 5.0 V (Full-swing 0 ~ 5 V) |
-| 동작 주기 / 주파수 | 약 40 ns / 최대 약 25 MHz |
-| 제어 신호 펄스 폭 (WL, WE, SE) | 약 17 ~ 20 ns |
-| Write Access Delay | 약 1 ~ 2 ns (WE/WL 활성화 기준, 시뮬레이션) |
-| Read Access Delay | < 1 ns (SE 활성화 기준, 시뮬레이션) |
+| 동작 주기 / 주파수 | 5 ns / 200 MHz (시뮬레이션 조건, 5 ns마다 Write 또는 Read 1회) |
+| 제어 신호 펄스 폭 (WL, WE, SE) | 약 2.4 ns (50% 기준, 시뮬레이션 조건) |
+| Write Access Delay | 1.262 ns (WL 50% → 셀 노드 `q` 50%, Worst-case, 시뮬레이션) |
+| Read Access Delay | 2.829 ns (WL 50% → `OUT` 50%, Worst-case, 시뮬레이션) |
+| 평균 전력 / 누설 전력 | 5.795 mW / 632.8 pW (시뮬레이션, [성능 측정](#-성능-측정-simulation) 참고) |
 | 설계 면적 | Top_sram 248.2 µm × 268.4 µm / 테스트 Inverter 13.8 µm × 29.6 µm |
 | 패키지 | MPW_PAD_28pin 표준칩 배치, Bare Die & 28-pin SOP |
 
@@ -174,15 +178,133 @@ PIC(입력 패드), POB4(출력 패드)를 포함한 칩 레벨 테스트벤치�
 
 <img src="docs/images/simulation/testbench_with_pads.png" width="800" alt="Testbench with pads">
 
-### Transient Response (0 ~ 40 ns)
+### Transient Response — Cell A (0 ~ 40 ns)
+
+IN = 1, CA = 0으로 고정해 Cell A(`I0`) 한 개를 동작시킨 파형입니다. 4개 셀 순차 동작과 정량 측정은 [성능 측정](#-성능-측정-simulation)을 참고하세요.
 
 <img src="docs/images/simulation/transient_with_pads.png" width="800" alt="Transient response with pads">
 
 **관찰 결과**
 
-- **Write** — DATA 토글(0 → 1 → 0)에 맞춰 내부 노드 `q` / `qb`가 반전되며, WE·WL 활성화 후 약 1 ~ 2 ns 내에 완전한 논리 레벨(0 V / 5 V)로 안착
-- **Read** — Precharge 해제 후 SE 활성화 시 `OUT`이 1 ns 미만으로 응답
+- **Write** — DATA 토글(0 → 1 → 0)에 맞춰 내부 노드 `q` / `qb`가 반전되며, WE·WL 활성화 후 약 1 ~ 2 ns 내에 완전한 논리 레벨(0 V / 5 V)로 안착 (50% 기준 Write Delay 측정값 1.262 ns)
+- **Read** — Precharge 해제 후 SE 활성화 시 `OUT`으로 데이터 출력 (WL 50% → `OUT` 50% 기준 Read Delay 측정값 2.829 ns, 출력 패드 지연 포함)
 - **Stability** — 읽기 중 비트라인 커플링·전하 분배에 의한 Read Disturb 없이 `q` / `qb` 상태 유지
+
+---
+
+## 📊 성능 측정 (Simulation)
+
+ADE XL / Maestro의 Output Expression으로 **Delay · Energy · Power**를 측정했습니다 (VDD = 5 V).
+이 값들은 이후 실리콘 실측값과 비교할 시뮬레이션 기준값으로 사용합니다.
+
+### 측정 결과 요약
+
+| 구분 | 항목 | 측정값 | 측정 기준 |
+|---|---|---:|---|
+| Timing | Write Delay | **1.262 ns** | WL 50% → `q` 50%, 4개 셀 × Write 0/1 중 최댓값 |
+| Timing | Read Delay | **2.829 ns** | WL 50% → `OUT` 50%, 4개 셀 × Read 0/1 중 최댓값 |
+| Energy | Write 0 (`E_wr0`) | **15.88 pJ** | Cell A에 '0' 쓰기 1회 |
+| Energy | Write 1 (`E_wr1`) | **15.85 pJ** | Cell A에 '1' 쓰기 1회 |
+| Energy | Read 0 (`E_rd0`) | **52.57 pJ** | Cell A에서 '0' 읽기 1회 |
+| Energy | Read 1 (`E_rd1`) | **30.74 pJ** | Cell A에서 '1' 읽기 1회 |
+| Power | 평균 전력 (`P_avg`) | **5.795 mW** | 동작 구간 VDD 평균 전력 |
+| Power | 피크 전류 (`I_peak`) | **7.347 mA** | VDD 공급 전류 최댓값 |
+| Power | 누설 전력 (`P_leak`) | **632.8 pW** | 대기 구간 VDD 평균 전력 (≈ 126.6 pA) |
+
+### 측정 대상 셀
+
+Row 주소 `IN`과 Column 주소 `CA`의 조합으로 4개 셀을 Cell A ~ D로 구분했습니다.
+
+| 셀 | 인스턴스 | IN | CA | Word Line |
+|:---:|:---:|:---:|:---:|---|
+| A | `I0` | 1 | 0 | WL_0 (`net7`) |
+| B | `I1` | 1 | 1 | WL_0 (`net7`) |
+| C | `I2` | 0 | 0 | WL_1 (`net8`) |
+| D | `I3` | 0 | 1 | WL_1 (`net8`) |
+
+> 테스트벤치 신호 — `/IN` · `/EN`: Row Decoder 입력(RIN · REN) · `/I1/net7` · `/I1/net8`: Row Decoder 출력 Word Line(WL_0 · WL_1) · `/I1/I0/I0 ~ I3/q`: 각 셀의 저장 노드(`I1` = Top_sram, `I0` = SRAM_2x2) · `/OUT`: SRAM 출력 `OUTS`가 출력 패드(POB4)를 거친 노드
+
+### Write 동작 파형 (0 ~ 40 ns)
+
+<img src="docs/images/simulation/transient_write_4cell.png" width="800" alt="Transient response: sequential write 0/1 to 4 cells">
+
+Cell A(0 ~ 10 ns) → B(10 ~ 20 ns) → C(20 ~ 30 ns) → D(30 ~ 40 ns) 순서로, 셀마다 **Write 0 → Write 1**을 수행했습니다. WE · EN · SE · PRE는 5 ns 주기, 폭 약 2.4 ns(50% 기준)의 펄스로 함께 인가됩니다.
+
+### Write Delay
+
+**정의** — Word Line이 50%(2.5 V)를 지나는 시점부터 `q`가 50%에 도달할 때까지 걸리는 시간의 최댓값 (4개 셀 × Write 0/1 중 Worst-case)
+
+셀마다 10 ns 구간 안의 Write 0 · Write 1 지연을 모두 구하고(`?multiple t`) 최댓값(`ymax`)을 취했습니다. B ~ D는 Word Line · 셀 노드 · 측정 구간만 바뀝니다.
+
+```
+A_twrite:
+ymax(delay(?wf1 clip(VT("/I1/net7") 0 10n) ?value1 2.5 ?edge1 "rising" ?nth1 1 ?td1 0
+           ?wf2 clip(VT("/I1/I0/I0/q") 0 10n) ?value2 2.5 ?edge2 "either" ?nth2 1 ?td2 nil
+           ?stop nil ?multiple t))
+```
+
+| Output | 셀 | Word Line → 셀 노드 | 측정 구간 | Write Delay |
+|---|:---:|---|:---:|---:|
+| `A_twrite` | A | `net7` → `I0/q` | 0 ~ 10 ns | **1.262 ns** |
+| `B_twrite` | B | `net7` → `I1/q` | 10 ~ 20 ns | **1.257 ns** |
+| `C_twrite` | C | `net8` → `I2/q` | 20 ~ 30 ns | **1.262 ns** |
+| `D_twrite` | D | `net8` → `I3/q` | 30 ~ 40 ns | **1.262 ns** |
+
+Cell A를 전이 방향별로 나눠 보면 **Write 1 (q: 0 → 1) 1.261 ns**, **Write 0 (q: 1 → 0) 1.096 ns**입니다.
+
+<img src="docs/images/simulation/meas_write_delay.png" alt="Write delay measurement">
+
+### Read Delay
+
+**정의** — Word Line이 50%(2.5 V)를 지나는 시점부터 `OUT`이 50%에 도달할 때까지 걸리는 시간의 최댓값 (4개 셀 × Read 0/1 중 Worst-case)
+
+Write 파형(0 ~ 40 ns)과 별도의 시뮬레이션에서, 셀마다 Read 0 · Read 1 두 구간의 지연을 각각 구한 뒤 최댓값(`max`)을 취했습니다. `/OUT`은 출력 패드 이후 노드이므로 출력 패드 지연이 포함됩니다.
+
+```
+A_tread:
+max(delay(?wf1 clip(VT("/I1/net7") 15n 20n) ?value1 2.5 ?edge1 "rising" ?nth1 1 ?td1 0
+          ?wf2 clip(VT("/OUT") 15n 20n) ?value2 2.5 ?edge2 "either" ?nth2 1 ?td2 nil
+          ?stop nil ?multiple nil)
+    delay(?wf1 clip(VT("/I1/net7") 25n 30n) ?value1 2.5 ?edge1 "rising" ?nth1 1 ?td1 0
+          ?wf2 clip(VT("/OUT") 25n 30n) ?value2 2.5 ?edge2 "either" ?nth2 1 ?td2 nil
+          ?stop nil ?multiple nil))
+```
+
+| Output | 셀 | Word Line | 측정 구간 (2회) | Read Delay |
+|---|:---:|---|:---:|---:|
+| `A_tread` | A | `net7` | 15 ~ 20 ns, 25 ~ 30 ns | **2.829 ns** |
+| `B_tread` | B | `net7` | 35 ~ 40 ns, 45 ~ 50 ns | **2.829 ns** |
+| `C_tread` | C | `net8` | 55 ~ 60 ns, 65 ~ 70 ns | **2.829 ns** |
+| `D_tread` | D | `net8` | 75 ~ 80 ns, 85 ~ 90 ns | **2.829 ns** |
+
+<img src="docs/images/simulation/meas_read_delay.png" alt="Read delay measurement">
+
+### 에너지 · 전력 측정
+
+VDD 전원 소스 `V1`의 단자 전류로 계산했습니다. 소스가 회로에 전류를 공급하면 `IT("/V1/PLUS")`가 음수가 되므로, −V<sub>DD</sub>(= −5)를 곱해 양수로 바꿉니다.
+동작별 에너지는 Cell A에 Write 0 → Read 0 → Write 1 → Read 1을 수행하는 각 구간(10 / 15 / 20 / 25 ns부터)을 적분한 값입니다.
+
+| 항목 | 계산 | Maestro Expression |
+|---|---|---|
+| 에너지 (`E_wr0` · `E_wr1` · `E_rd0` · `E_rd1`) | −V<sub>DD</sub> · ∫ I<sub>V1</sub> dt (해당 동작 구간) | `-5 * integ(IT("/V1/PLUS") t1 t2)` |
+| 전력 (`P_avg` · `P_leak`) | −V<sub>DD</sub> · avg(I<sub>V1</sub>) (동작 구간 / 대기 구간) | `-5 * average(clip(IT("/V1/PLUS") t1 t2))` |
+| 피크 전류 (`I_peak`) | max(−I<sub>V1</sub>) (전체 구간) | `ymax((- IT("/V1/PLUS")))` |
+
+<p>
+  <img src="docs/images/simulation/meas_energy_power.png" alt="Energy, average power and peak current">
+</p>
+<p>
+  <img src="docs/images/simulation/meas_leakage_power.png" alt="Leakage power">
+</p>
+
+### 분석
+
+- **Write Delay** — 4개 셀이 1.257 ~ 1.262 ns로 편차 5 ps 이내 → 셀 위치(Row / Column)에 따른 차이가 거의 없음. Cell A 기준 Write 1(0 → 1)이 Write 0(1 → 0)보다 약 0.17 ns 느려 Worst-case를 결정
+- **Read Delay** — 4개 셀 모두 2.829 ns로 동일 (출력 패드 지연 포함)
+- **Write 에너지** — '0' 15.88 pJ, '1' 15.85 pJ로 데이터 값과 관계없이 거의 같음
+- **Read 에너지** — Read 0(52.57 pJ)이 Read 1(30.74 pJ)의 약 1.7배이며, 둘 다 Write보다 큼
+- **누설 전력** — 632.8 pW로 평균 전력(5.795 mW)의 약 10⁻⁷ 수준
+- **데이터 유지** — 같은 Word Line을 쓰는 비선택 셀(예: Cell A에 쓰는 동안의 Cell B)과 이미 기록된 셀의 `q`가 이후 Write 동안 그대로 유지됨
 
 ---
 
@@ -214,7 +336,7 @@ Siemens **Calibre 2023.3**으로 검증했습니다.
 
 ## 🔬 실리콘 검증 계획
 
-제작된 칩을 Breakout Board를 통해 **AMD Zynq-7000 SoC** 보드에 연결하고, FPGA BRAM 기반 레퍼런스 SRAM과 동작을 비교합니다.
+제작된 칩을 Breakout Board를 통해 **AMD Zynq-7000 SoC** 보드에 연결하고, FPGA BRAM 기반 레퍼런스 SRAM과 동작을 비교합니다. 실측한 Delay · Power는 [성능 측정](#-성능-측정-simulation)의 시뮬레이션 기준값과 비교합니다.
 
 ```
  PC ──UART──▶ Zynq PS (ARM Cortex-A9, Vitis)
@@ -251,13 +373,13 @@ Siemens **Calibre 2023.3**으로 검증했습니다.
 ## 📁 저장소 구조
 
 ```
-sram-2x2-mychip/
+MYCHIP_6T-SRAM/
 ├── README.md
 └── docs/
     └── images/
         ├── schematic/      # 블록별 회로도
         ├── layout/         # 블록별 레이아웃 + 패드 포함 칩
-        ├── simulation/     # Testbench, Transient 파형
+        ├── simulation/     # Testbench, Transient 파형, 성능 측정 캡처
         └── verification/   # DRC / LVS 결과
 ```
 
