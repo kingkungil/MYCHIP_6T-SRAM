@@ -23,10 +23,11 @@
 4. [회로 설계 (Schematic)](#-회로-설계-schematic)
 5. [레이아웃 (Layout)](#-레이아웃-layout)
 6. [시뮬레이션 결과](#-시뮬레이션-결과)
-7. [물리 검증 (DRC / LVS)](#-물리-검증-drc--lvs)
-8. [핀 배치](#-핀-배치)
-9. [실리콘 검증 계획](#-실리콘-검증-계획)
-10. [팀](#-팀)
+7. [성능 측정 (Simulation)](#-성능-측정-simulation)
+8. [물리 검증 (DRC / LVS)](#-물리-검증-drc--lvs)
+9. [핀 배치](#-핀-배치)
+10. [실리콘 검증 계획](#-실리콘-검증-계획)
+11. [팀](#-팀)
 
 ---
 
@@ -55,8 +56,9 @@
 | 동작 전압 | 5.0 V (Full-swing 0 ~ 5 V) |
 | 동작 주기 / 주파수 | 약 40 ns / 최대 약 25 MHz |
 | 제어 신호 펄스 폭 (WL, WE, SE) | 약 17 ~ 20 ns |
-| Write Access Delay | 약 1 ~ 2 ns (WE/WL 활성화 기준, 시뮬레이션) |
-| Read Access Delay | < 1 ns (SE 활성화 기준, 시뮬레이션) |
+| Write Access Delay | 1.262 ns (WL 50% → 셀 노드 `q` 50%, Worst-case, 시뮬레이션) |
+| Read Access Delay | 2.829 ns (WL 50% 기준, 시뮬레이션) |
+| 평균 전력 / 누설 전력 | 5.795 mW / 632.8 pW (시뮬레이션, [성능 측정](#-성능-측정-simulation) 참고) |
 | 설계 면적 | Top_sram 248.2 µm × 268.4 µm / 테스트 Inverter 13.8 µm × 29.6 µm |
 | 패키지 | MPW_PAD_28pin 표준칩 배치, Bare Die & 28-pin SOP |
 
@@ -186,6 +188,92 @@ PIC(입력 패드), POB4(출력 패드)를 포함한 칩 레벨 테스트벤치�
 
 ---
 
+## 📊 성능 측정 (Simulation)
+
+ADE XL / Maestro의 Output Expression으로 **Delay · Energy · Power**를 측정했습니다 (VDD = 5 V).
+이 값들은 이후 실리콘 실측값과 비교할 시뮬레이션 기준값으로 사용합니다.
+
+### 측정 결과 요약
+
+| 구분 | 항목 | 측정값 | 측정 기준 |
+|---|---|---:|---|
+| Timing | Write Delay | **1.262 ns** | WL 50% 상승 → 셀 노드 `q` 50% 전이, 4개 셀 중 최댓값 |
+| Timing | Read Delay | **2.829 ns** | WL 50% 상승 → Read 출력 전이, 4개 셀 동일 |
+| Energy | Write 0 (`E_wr0`) | **15.88 pJ** | 셀 1개에 '0' 쓰기 1회 |
+| Energy | Write 1 (`E_wr1`) | **15.85 pJ** | 셀 1개에 '1' 쓰기 1회 |
+| Energy | Read 0 (`E_rd0`) | **52.57 pJ** | 셀 1개에서 '0' 읽기 1회 |
+| Energy | Read 1 (`E_rd1`) | **30.74 pJ** | 셀 1개에서 '1' 읽기 1회 |
+| Power | 평균 전력 (`P_avg`) | **5.795 mW** | 동작 구간 VDD 평균 전력 |
+| Power | 피크 전류 (`I_peak`) | **7.347 mA** | VDD 공급 전류 최댓값 |
+| Power | 누설 전력 (`P_leak`) | **632.8 pW** | 대기 구간 VDD 평균 전력 (≈ 126.6 pA) |
+
+### Write 동작 파형 (0 ~ 40 ns)
+
+<img src="docs/images/simulation/transient_write_4cell.png" width="800" alt="Transient response: sequential write 0/1 to 4 cells">
+
+4개 셀에 10 ns씩 **Write 0 → Write 1**을 차례로 수행했습니다. WE · EN · SE · PRE는 5 ns 주기 펄스로 함께 인가되고, IN(Row 주소)과 CA(Column 주소)로 대상 셀을 고릅니다.
+
+| 구간 | IN | 활성 Word Line | CA | 대상 셀 | 동작 |
+|---|:---:|---|:---:|:---:|---|
+| 0 ~ 10 ns | 1 | WL_0 (`net7`) | 0 | I0 | Write 0 → Write 1 |
+| 10 ~ 20 ns | 1 | WL_0 (`net7`) | 1 | I1 | Write 0 → Write 1 |
+| 20 ~ 30 ns | 0 | WL_1 (`net8`) | 0 | I2 | Write 0 → Write 1 |
+| 30 ~ 40 ns | 0 | WL_1 (`net8`) | 1 | I3 | Write 0 → Write 1 |
+
+> 파형의 `/IN` · `/EN`은 Row Decoder 입력(RIN · REN), `/I1/net7` · `/I1/net8`은 Row Decoder 출력 Word Line(WL_0 · WL_1), `/I1/I0/I0 ~ I3/q`는 각 셀의 저장 노드입니다 (`I1` = Top_sram, `I0` = SRAM_2x2).
+
+### Delay 측정
+
+**Write Delay** — WL이 2.5 V(50%)를 지나 상승한 시점부터 대상 셀의 `q`가 2.5 V를 지날 때까지의 시간입니다 (상승·하강 모두). 셀마다 10 ns 구간 안의 Write 0 · Write 1 지연을 모두 구해 최댓값을 취했습니다 (`?multiple t` + `ymax`).
+
+| Output | 측정 구간 | Word Line | 대상 셀 | Write Delay |
+|---|:---:|---|:---:|---:|
+| `A_twrite` | 0 ~ 10 ns | WL_0 (`net7`) | I0 | **1.262 ns** |
+| `B_twrite` | 10 ~ 20 ns | WL_0 (`net7`) | I1 | **1.257 ns** |
+| `C_twrite` | 20 ~ 30 ns | WL_1 (`net8`) | I2 | **1.262 ns** |
+| `D_twrite` | 30 ~ 40 ns | WL_1 (`net8`) | I3 | **1.262 ns** |
+
+<img src="docs/images/simulation/meas_write_delay.png" alt="Write delay measurement">
+
+**Read Delay** — WL이 2.5 V(50%)를 지나 상승한 시점부터 Read 출력이 전이할 때까지의 시간입니다. 위 Write 파형과는 별도의 시뮬레이션에서, 5 ns 길이의 각 측정 구간마다 구했습니다.
+
+| Output | 측정 구간 | Word Line | Read Delay |
+|---|:---:|---|---:|
+| `A` | 15 ~ 20 ns | WL_0 (`net7`) | **2.829 ns** |
+| `B` | 35 ~ 40 ns | WL_0 (`net7`) | **2.829 ns** |
+| `C` | 55 ~ 60 ns | WL_1 (`net8`) | **2.829 ns** |
+| `D` | 75 ~ 80 ns | WL_1 (`net8`) | **2.829 ns** |
+
+<img src="docs/images/simulation/meas_read_delay.png" alt="Read delay measurement">
+
+### 에너지 · 전력 측정
+
+VDD 전원 소스 `V1`의 단자 전류로 계산했습니다. 소스가 회로에 전류를 공급하면 `IT("/V1/PLUS")`가 음수가 되므로, −V<sub>DD</sub>(= −5)를 곱해 양수로 바꿉니다.
+
+| 항목 | 계산 | Maestro Expression |
+|---|---|---|
+| 에너지 (`E_wr0` · `E_wr1` · `E_rd0` · `E_rd1`) | −V<sub>DD</sub> · ∫ I<sub>V1</sub> dt (해당 동작 구간) | `-5 * integ(IT("/V1/PLUS") t1 t2)` |
+| 전력 (`P_avg` · `P_leak`) | −V<sub>DD</sub> · avg(I<sub>V1</sub>) (동작 구간 / 대기 구간) | `-5 * average(clip(IT("/V1/PLUS") t1 t2))` |
+| 피크 전류 (`I_peak`) | max(−I<sub>V1</sub>) (전체 구간) | `ymax((- IT("/V1/PLUS")))` |
+
+<p>
+  <img src="docs/images/simulation/meas_energy_power.png" alt="Energy, average power and peak current">
+</p>
+<p>
+  <img src="docs/images/simulation/meas_leakage_power.png" alt="Leakage power">
+</p>
+
+### 분석
+
+- **Write Delay** — 4개 셀이 1.257 ~ 1.262 ns로 편차 5 ps 이내 → 셀 위치(Row / Column)에 따른 차이가 거의 없음
+- **Read Delay** — 4개 셀 모두 2.829 ns로 동일
+- **Write 에너지** — '0' 15.88 pJ, '1' 15.85 pJ로 데이터 값과 관계없이 거의 같음
+- **Read 에너지** — Read 0(52.57 pJ)이 Read 1(30.74 pJ)의 약 1.7배이며, 둘 다 Write보다 큼
+- **누설 전력** — 632.8 pW로 평균 전력(5.795 mW)의 약 10⁻⁷ 수준
+- **데이터 유지** — 같은 Word Line을 쓰는 비선택 셀(예: I0에 쓰는 동안의 I1)과 이미 기록된 셀의 `q`가 이후 Write 동안 그대로 유지됨
+
+---
+
 ## ✅ 물리 검증 (DRC / LVS)
 
 Siemens **Calibre 2023.3**으로 검증했습니다.
@@ -257,7 +345,7 @@ sram-2x2-mychip/
     └── images/
         ├── schematic/      # 블록별 회로도
         ├── layout/         # 블록별 레이아웃 + 패드 포함 칩
-        ├── simulation/     # Testbench, Transient 파형
+        ├── simulation/     # Testbench, Transient 파형, 성능 측정 캡처
         └── verification/   # DRC / LVS 결과
 ```
 
