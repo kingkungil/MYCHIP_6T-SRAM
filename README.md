@@ -57,7 +57,7 @@
 | 동작 주기 / 주파수 | 약 40 ns / 최대 약 25 MHz |
 | 제어 신호 펄스 폭 (WL, WE, SE) | 약 17 ~ 20 ns |
 | Write Access Delay | 1.262 ns (WL 50% → 셀 노드 `q` 50%, Worst-case, 시뮬레이션) |
-| Read Access Delay | 2.829 ns (WL 50% 기준, 시뮬레이션) |
+| Read Access Delay | 2.829 ns (WL 50% → `OUT` 50%, Worst-case, 시뮬레이션) |
 | 평균 전력 / 누설 전력 | 5.795 mW / 632.8 pW (시뮬레이션, [성능 측정](#-성능-측정-simulation) 참고) |
 | 설계 면적 | Top_sram 248.2 µm × 268.4 µm / 테스트 Inverter 13.8 µm × 29.6 µm |
 | 패키지 | MPW_PAD_28pin 표준칩 배치, Bare Die & 28-pin SOP |
@@ -197,58 +197,88 @@ ADE XL / Maestro의 Output Expression으로 **Delay · Energy · Power**를 측�
 
 | 구분 | 항목 | 측정값 | 측정 기준 |
 |---|---|---:|---|
-| Timing | Write Delay | **1.262 ns** | WL 50% 상승 → 셀 노드 `q` 50% 전이, 4개 셀 중 최댓값 |
-| Timing | Read Delay | **2.829 ns** | WL 50% 상승 → Read 출력 전이, 4개 셀 동일 |
-| Energy | Write 0 (`E_wr0`) | **15.88 pJ** | 셀 1개에 '0' 쓰기 1회 |
-| Energy | Write 1 (`E_wr1`) | **15.85 pJ** | 셀 1개에 '1' 쓰기 1회 |
-| Energy | Read 0 (`E_rd0`) | **52.57 pJ** | 셀 1개에서 '0' 읽기 1회 |
-| Energy | Read 1 (`E_rd1`) | **30.74 pJ** | 셀 1개에서 '1' 읽기 1회 |
+| Timing | Write Delay | **1.262 ns** | WL 50% → `q` 50%, 4개 셀 × Write 0/1 중 최댓값 |
+| Timing | Read Delay | **2.829 ns** | WL 50% → `OUT` 50%, 4개 셀 × Read 0/1 중 최댓값 |
+| Energy | Write 0 (`E_wr0`) | **15.88 pJ** | Cell A에 '0' 쓰기 1회 |
+| Energy | Write 1 (`E_wr1`) | **15.85 pJ** | Cell A에 '1' 쓰기 1회 |
+| Energy | Read 0 (`E_rd0`) | **52.57 pJ** | Cell A에서 '0' 읽기 1회 |
+| Energy | Read 1 (`E_rd1`) | **30.74 pJ** | Cell A에서 '1' 읽기 1회 |
 | Power | 평균 전력 (`P_avg`) | **5.795 mW** | 동작 구간 VDD 평균 전력 |
 | Power | 피크 전류 (`I_peak`) | **7.347 mA** | VDD 공급 전류 최댓값 |
 | Power | 누설 전력 (`P_leak`) | **632.8 pW** | 대기 구간 VDD 평균 전력 (≈ 126.6 pA) |
+
+### 측정 대상 셀
+
+Row 주소 `IN`과 Column 주소 `CA`의 조합으로 4개 셀을 Cell A ~ D로 구분했습니다.
+
+| 셀 | 인스턴스 | IN | CA | Word Line |
+|:---:|:---:|:---:|:---:|---|
+| A | `I0` | 1 | 0 | WL_0 (`net7`) |
+| B | `I1` | 1 | 1 | WL_0 (`net7`) |
+| C | `I2` | 0 | 0 | WL_1 (`net8`) |
+| D | `I3` | 0 | 1 | WL_1 (`net8`) |
+
+> 테스트벤치 신호 — `/IN` · `/EN`: Row Decoder 입력(RIN · REN) · `/I1/net7` · `/I1/net8`: Row Decoder 출력 Word Line(WL_0 · WL_1) · `/I1/I0/I0 ~ I3/q`: 각 셀의 저장 노드(`I1` = Top_sram, `I0` = SRAM_2x2) · `/OUT`: SRAM 출력 `OUTS`가 출력 패드(POB4)를 거친 노드
 
 ### Write 동작 파형 (0 ~ 40 ns)
 
 <img src="docs/images/simulation/transient_write_4cell.png" width="800" alt="Transient response: sequential write 0/1 to 4 cells">
 
-4개 셀에 10 ns씩 **Write 0 → Write 1**을 차례로 수행했습니다. WE · EN · SE · PRE는 5 ns 주기 펄스로 함께 인가되고, IN(Row 주소)과 CA(Column 주소)로 대상 셀을 고릅니다.
+Cell A(0 ~ 10 ns) → B(10 ~ 20 ns) → C(20 ~ 30 ns) → D(30 ~ 40 ns) 순서로, 셀마다 **Write 0 → Write 1**을 수행했습니다. WE · EN · SE · PRE는 5 ns 주기 펄스로 함께 인가됩니다.
 
-| 구간 | IN | 활성 Word Line | CA | 대상 셀 | 동작 |
-|---|:---:|---|:---:|:---:|---|
-| 0 ~ 10 ns | 1 | WL_0 (`net7`) | 0 | I0 | Write 0 → Write 1 |
-| 10 ~ 20 ns | 1 | WL_0 (`net7`) | 1 | I1 | Write 0 → Write 1 |
-| 20 ~ 30 ns | 0 | WL_1 (`net8`) | 0 | I2 | Write 0 → Write 1 |
-| 30 ~ 40 ns | 0 | WL_1 (`net8`) | 1 | I3 | Write 0 → Write 1 |
+### Write Delay
 
-> 파형의 `/IN` · `/EN`은 Row Decoder 입력(RIN · REN), `/I1/net7` · `/I1/net8`은 Row Decoder 출력 Word Line(WL_0 · WL_1), `/I1/I0/I0 ~ I3/q`는 각 셀의 저장 노드입니다 (`I1` = Top_sram, `I0` = SRAM_2x2).
+**정의** — Word Line이 50%(2.5 V)를 지나는 시점부터 `q`가 50%에 도달할 때까지 걸리는 시간의 최댓값 (4개 셀 × Write 0/1 중 Worst-case)
 
-### Delay 측정
+셀마다 10 ns 구간 안의 Write 0 · Write 1 지연을 모두 구하고(`?multiple t`) 최댓값(`ymax`)을 취했습니다. B ~ D는 Word Line · 셀 노드 · 측정 구간만 바뀝니다.
 
-**Write Delay** — WL이 2.5 V(50%)를 지나 상승한 시점부터 대상 셀의 `q`가 2.5 V를 지날 때까지의 시간입니다 (상승·하강 모두). 셀마다 10 ns 구간 안의 Write 0 · Write 1 지연을 모두 구해 최댓값을 취했습니다 (`?multiple t` + `ymax`).
+```
+A_twrite:
+ymax(delay(?wf1 clip(VT("/I1/net7") 0 10n) ?value1 2.5 ?edge1 "rising" ?nth1 1 ?td1 0
+           ?wf2 clip(VT("/I1/I0/I0/q") 0 10n) ?value2 2.5 ?edge2 "either" ?nth2 1 ?td2 nil
+           ?stop nil ?multiple t))
+```
 
-| Output | 측정 구간 | Word Line | 대상 셀 | Write Delay |
+| Output | 셀 | Word Line → 셀 노드 | 측정 구간 | Write Delay |
 |---|:---:|---|:---:|---:|
-| `A_twrite` | 0 ~ 10 ns | WL_0 (`net7`) | I0 | **1.262 ns** |
-| `B_twrite` | 10 ~ 20 ns | WL_0 (`net7`) | I1 | **1.257 ns** |
-| `C_twrite` | 20 ~ 30 ns | WL_1 (`net8`) | I2 | **1.262 ns** |
-| `D_twrite` | 30 ~ 40 ns | WL_1 (`net8`) | I3 | **1.262 ns** |
+| `A_twrite` | A | `net7` → `I0/q` | 0 ~ 10 ns | **1.262 ns** |
+| `B_twrite` | B | `net7` → `I1/q` | 10 ~ 20 ns | **1.257 ns** |
+| `C_twrite` | C | `net8` → `I2/q` | 20 ~ 30 ns | **1.262 ns** |
+| `D_twrite` | D | `net8` → `I3/q` | 30 ~ 40 ns | **1.262 ns** |
+
+Cell A를 전이 방향별로 나눠 보면 **Write 1 (q: 0 → 1) 1.261 ns**, **Write 0 (q: 1 → 0) 1.096 ns**입니다.
 
 <img src="docs/images/simulation/meas_write_delay.png" alt="Write delay measurement">
 
-**Read Delay** — WL이 2.5 V(50%)를 지나 상승한 시점부터 Read 출력이 전이할 때까지의 시간입니다. 위 Write 파형과는 별도의 시뮬레이션에서, 5 ns 길이의 각 측정 구간마다 구했습니다.
+### Read Delay
 
-| Output | 측정 구간 | Word Line | Read Delay |
-|---|:---:|---|---:|
-| `A` | 15 ~ 20 ns | WL_0 (`net7`) | **2.829 ns** |
-| `B` | 35 ~ 40 ns | WL_0 (`net7`) | **2.829 ns** |
-| `C` | 55 ~ 60 ns | WL_1 (`net8`) | **2.829 ns** |
-| `D` | 75 ~ 80 ns | WL_1 (`net8`) | **2.829 ns** |
+**정의** — Word Line이 50%(2.5 V)를 지나는 시점부터 `OUT`이 50%에 도달할 때까지 걸리는 시간의 최댓값 (4개 셀 × Read 0/1 중 Worst-case)
+
+Write 파형(0 ~ 40 ns)과 별도의 시뮬레이션에서, 셀마다 Read 0 · Read 1 두 구간의 지연을 각각 구한 뒤 최댓값(`max`)을 취했습니다. `/OUT`은 출력 패드 이후 노드이므로 출력 패드 지연이 포함됩니다.
+
+```
+A_tread:
+max(delay(?wf1 clip(VT("/I1/net7") 15n 20n) ?value1 2.5 ?edge1 "rising" ?nth1 1 ?td1 0
+          ?wf2 clip(VT("/OUT") 15n 20n) ?value2 2.5 ?edge2 "either" ?nth2 1 ?td2 nil
+          ?stop nil ?multiple nil)
+    delay(?wf1 clip(VT("/I1/net7") 25n 30n) ?value1 2.5 ?edge1 "rising" ?nth1 1 ?td1 0
+          ?wf2 clip(VT("/OUT") 25n 30n) ?value2 2.5 ?edge2 "either" ?nth2 1 ?td2 nil
+          ?stop nil ?multiple nil))
+```
+
+| Output | 셀 | Word Line | 측정 구간 (2회) | Read Delay |
+|---|:---:|---|:---:|---:|
+| `A_tread` | A | `net7` | 15 ~ 20 ns, 25 ~ 30 ns | **2.829 ns** |
+| `B_tread` | B | `net7` | 35 ~ 40 ns, 45 ~ 50 ns | **2.829 ns** |
+| `C_tread` | C | `net8` | 55 ~ 60 ns, 65 ~ 70 ns | **2.829 ns** |
+| `D_tread` | D | `net8` | 75 ~ 80 ns, 85 ~ 90 ns | **2.829 ns** |
 
 <img src="docs/images/simulation/meas_read_delay.png" alt="Read delay measurement">
 
 ### 에너지 · 전력 측정
 
 VDD 전원 소스 `V1`의 단자 전류로 계산했습니다. 소스가 회로에 전류를 공급하면 `IT("/V1/PLUS")`가 음수가 되므로, −V<sub>DD</sub>(= −5)를 곱해 양수로 바꿉니다.
+동작별 에너지는 Cell A에 Write 0 → Read 0 → Write 1 → Read 1을 수행하는 각 구간(10 / 15 / 20 / 25 ns부터)을 적분한 값입니다.
 
 | 항목 | 계산 | Maestro Expression |
 |---|---|---|
@@ -265,12 +295,12 @@ VDD 전원 소스 `V1`의 단자 전류로 계산했습니다. 소스가 회로�
 
 ### 분석
 
-- **Write Delay** — 4개 셀이 1.257 ~ 1.262 ns로 편차 5 ps 이내 → 셀 위치(Row / Column)에 따른 차이가 거의 없음
-- **Read Delay** — 4개 셀 모두 2.829 ns로 동일
+- **Write Delay** — 4개 셀이 1.257 ~ 1.262 ns로 편차 5 ps 이내 → 셀 위치(Row / Column)에 따른 차이가 거의 없음. Cell A 기준 Write 1(0 → 1)이 Write 0(1 → 0)보다 약 0.17 ns 느려 Worst-case를 결정
+- **Read Delay** — 4개 셀 모두 2.829 ns로 동일 (출력 패드 지연 포함)
 - **Write 에너지** — '0' 15.88 pJ, '1' 15.85 pJ로 데이터 값과 관계없이 거의 같음
 - **Read 에너지** — Read 0(52.57 pJ)이 Read 1(30.74 pJ)의 약 1.7배이며, 둘 다 Write보다 큼
 - **누설 전력** — 632.8 pW로 평균 전력(5.795 mW)의 약 10⁻⁷ 수준
-- **데이터 유지** — 같은 Word Line을 쓰는 비선택 셀(예: I0에 쓰는 동안의 I1)과 이미 기록된 셀의 `q`가 이후 Write 동안 그대로 유지됨
+- **데이터 유지** — 같은 Word Line을 쓰는 비선택 셀(예: Cell A에 쓰는 동안의 Cell B)과 이미 기록된 셀의 `q`가 이후 Write 동안 그대로 유지됨
 
 ---
 
