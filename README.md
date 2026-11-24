@@ -1,7 +1,7 @@
 # 2×2 SRAM Full-Custom Design — MoaFab MyChip
 
 > 모아팹(MoaFab) **'내 칩(MyChip)'** 서비스를 통해 설계·제작한 **2×2 6T SRAM** 풀커스텀 설계 프로젝트입니다.
-> 회로 설계부터 레이아웃, DRC/LVS 검증, 패드 포함 Top-level 시뮬레이션까지 진행했으며, 제작된 칩은 Zynq-7000 FPGA 기반으로 실리콘 검증할 예정입니다.
+> 회로 설계부터 레이아웃, DRC/LVS 검증, 패드 포함 Top-level 시뮬레이션과 성능 측정(Delay · Energy · Power)까지 진행했으며, 제작된 칩은 Zynq-7000 FPGA 기반으로 실리콘 검증할 예정입니다.
 
 ![Cadence Virtuoso](https://img.shields.io/badge/Cadence-Virtuoso%206.1.8-red)
 ![Calibre](https://img.shields.io/badge/Siemens-Calibre%202023.3-blue)
@@ -27,7 +27,9 @@
 8. [물리 검증 (DRC / LVS)](#-물리-검증-drc--lvs)
 9. [핀 배치](#-핀-배치)
 10. [실리콘 검증 계획](#-실리콘-검증-계획)
-11. [팀](#-팀)
+11. [개발 환경](#-개발-환경)
+12. [저장소 구조](#-저장소-구조)
+13. [팀](#-팀)
 
 ---
 
@@ -176,14 +178,16 @@ PIC(입력 패드), POB4(출력 패드)를 포함한 칩 레벨 테스트벤치�
 
 <img src="docs/images/simulation/testbench_with_pads.png" width="800" alt="Testbench with pads">
 
-### Transient Response (0 ~ 40 ns)
+### Transient Response — Cell A (0 ~ 40 ns)
+
+IN = 1, CA = 0으로 고정해 Cell A(`I0`) 한 개를 동작시킨 파형입니다. 4개 셀 순차 동작과 정량 측정은 [성능 측정](#-성능-측정-simulation)을 참고하세요.
 
 <img src="docs/images/simulation/transient_with_pads.png" width="800" alt="Transient response with pads">
 
 **관찰 결과**
 
-- **Write** — DATA 토글(0 → 1 → 0)에 맞춰 내부 노드 `q` / `qb`가 반전되며, WE·WL 활성화 후 약 1 ~ 2 ns 내에 완전한 논리 레벨(0 V / 5 V)로 안착
-- **Read** — Precharge 해제 후 SE 활성화 시 `OUT`이 1 ns 미만으로 응답
+- **Write** — DATA 토글(0 → 1 → 0)에 맞춰 내부 노드 `q` / `qb`가 반전되며, WE·WL 활성화 후 약 1 ~ 2 ns 내에 완전한 논리 레벨(0 V / 5 V)로 안착 (50% 기준 Write Delay 측정값 1.262 ns)
+- **Read** — Precharge 해제 후 SE 활성화 시 `OUT`으로 데이터 출력 (WL 50% → `OUT` 50% 기준 Read Delay 측정값 2.829 ns, 출력 패드 지연 포함)
 - **Stability** — 읽기 중 비트라인 커플링·전하 분배에 의한 Read Disturb 없이 `q` / `qb` 상태 유지
 
 ---
@@ -332,7 +336,7 @@ Siemens **Calibre 2023.3**으로 검증했습니다.
 
 ## 🔬 실리콘 검증 계획
 
-제작된 칩을 Breakout Board를 통해 **AMD Zynq-7000 SoC** 보드에 연결하고, FPGA BRAM 기반 레퍼런스 SRAM과 동작을 비교합니다.
+제작된 칩을 Breakout Board를 통해 **AMD Zynq-7000 SoC** 보드에 연결하고, FPGA BRAM 기반 레퍼런스 SRAM과 동작을 비교합니다. 실측한 Delay · Power는 [성능 측정](#-성능-측정-simulation)의 시뮬레이션 기준값과 비교합니다.
 
 ```
  PC ──UART──▶ Zynq PS (ARM Cortex-A9, Vitis)
@@ -369,7 +373,7 @@ Siemens **Calibre 2023.3**으로 검증했습니다.
 ## 📁 저장소 구조
 
 ```
-sram-2x2-mychip/
+MYCHIP_6T-SRAM/
 ├── README.md
 └── docs/
     └── images/
