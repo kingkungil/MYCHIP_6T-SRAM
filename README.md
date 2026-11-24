@@ -56,8 +56,8 @@
 |---|---|
 | 구성 | 2 × 2 (4-bit), 6T SRAM Cell |
 | 동작 전압 | 5.0 V (Full-swing 0 ~ 5 V) |
-| 동작 주기 / 주파수 | 약 40 ns / 최대 약 25 MHz |
-| 제어 신호 펄스 폭 (WL, WE, SE) | 약 17 ~ 20 ns |
+| 동작 주기 / 주파수 | 5 ns / 200 MHz (시뮬레이션 조건, 5 ns마다 Write 또는 Read 1회) |
+| 제어 신호 펄스 폭 (WL, WE, SE) | 약 2.4 ns (50% 기준, 시뮬레이션 조건) |
 | Write Access Delay | 1.262 ns (WL 50% → 셀 노드 `q` 50%, Worst-case, 시뮬레이션) |
 | Read Access Delay | 2.829 ns (WL 50% → `OUT` 50%, Worst-case, 시뮬레이션) |
 | 평균 전력 / 누설 전력 | 5.795 mW / 632.8 pW (시뮬레이션, [성능 측정](#-성능-측정-simulation) 참고) |
@@ -228,7 +228,7 @@ Row 주소 `IN`과 Column 주소 `CA`의 조합으로 4개 셀을 Cell A ~ D로 
 
 <img src="docs/images/simulation/transient_write_4cell.png" width="800" alt="Transient response: sequential write 0/1 to 4 cells">
 
-Cell A(0 ~ 10 ns) → B(10 ~ 20 ns) → C(20 ~ 30 ns) → D(30 ~ 40 ns) 순서로, 셀마다 **Write 0 → Write 1**을 수행했습니다. WE · EN · SE · PRE는 5 ns 주기 펄스로 함께 인가됩니다.
+Cell A(0 ~ 10 ns) → B(10 ~ 20 ns) → C(20 ~ 30 ns) → D(30 ~ 40 ns) 순서로, 셀마다 **Write 0 → Write 1**을 수행했습니다. WE · EN · SE · PRE는 5 ns 주기, 폭 약 2.4 ns(50% 기준)의 펄스로 함께 인가됩니다.
 
 ### Write Delay
 
